@@ -1,4 +1,3 @@
-
 # Energy Output Prediction — An AI Product Management Case Study
 
 > This project demonstrates how a Product Manager evaluates competing ML models for an operational business decision — not just to optimize for accuracy.
@@ -16,6 +15,7 @@
 | **Best Result** | Random Forest achieved R² = 0.964 and RMSE = 3.24 MW |
 | **Product Recommendation** | Deploy Random Forest for operational forecasting while maintaining Linear Regression as an interpretable benchmark |
 | **Key PM Insight** | The best-performing model is not always the easiest one to adopt — stakeholder trust and explainability are critical for operational AI systems |
+| **Critical Finding** | Ambient Temperature alone drives 90.1% of predicted output — a useful simplification for forecasting, and a flag for production validation |
 | **Production Considerations** | Model monitoring, drift detection, explainability, retraining strategy, and integration into operator workflows are required before deployment |
 
 ---
@@ -80,6 +80,7 @@ Reduce operational uncertainty in energy dispatch planning by providing a reliab
 - Source: [Machine Learning Repository – CCPP Dataset](https://storage.googleapis.com/aipi_datasets/CCPP_data.csv)
 
 **Input features:**
+
 | Variable | Description |
 |----------|-------------|
 | `AT` | Ambient Temperature (°C) |
@@ -88,6 +89,8 @@ Reduce operational uncertainty in energy dispatch planning by providing a reliab
 | `RH` | Relative Humidity (%) |
 
 **Target:** `PE` — Net hourly electrical power output (MW)
+
+> **Note:** The data file in this repository is `CCPP_data.csv` (uppercase). The notebook loads `ccpp_data.csv` (lowercase), which works on case-insensitive systems (macOS, Windows) but will fail on Linux. If running on Linux, rename the file before running: `mv data/CCPP_data.csv data/ccpp_data.csv`
 
 ---
 
@@ -119,21 +122,24 @@ Two machine learning models were implemented and evaluated:
 ## Model Trade-offs
 
 ### Linear Regression — the interpretable baseline
+
 - **Strengths:** Fully explainable. An operator can understand *why* the model predicts a given output. Easier to audit, debug, and trust in regulated environments.
 - **Weaknesses:** Assumes linear relationships between variables — not realistic for a thermal process where interactions (e.g., temperature × humidity) matter.
 - **Best fit for:** Internal stakeholder presentations, regulatory contexts, or teams where model explainability is a hard requirement.
 
 ### Random Forest — the performant choice
+
 - **Strengths:** Captures non-linear relationships and feature interactions. 30% lower RMSE than Linear Regression. More robust to outliers.
 - **Weaknesses:** Black-box by default. Harder to explain to non-technical users. Larger model footprint; requires more monitoring.
 - **Best fit for:** Production systems where accuracy directly drives business value and interpretability can be addressed via feature importance and dashboards.
 
 ### Recommended decision
+
 **Ship Random Forest for operational predictions. Maintain Linear Regression as the interpretable audit layer.**
 
 This mirrors a common product pattern: use the performant model for automated decisions, keep the interpretable one for stakeholder explainability and trust-building.
 
-> As a PM who has worked at UTE (Uruguay's national electric utility), I recognize that operator trust is often the real adoption blocker — not model accuracy. A 30% RMSE improvement means nothing if dispatchers don't trust the output.
+> Having worked in the energy sector, I've seen firsthand that operator trust is often the real adoption blocker — not model accuracy. A 30% RMSE improvement means nothing if dispatchers don't trust the output.
 
 ---
 
@@ -150,7 +156,10 @@ At UTE, I saw firsthand that operators won't act on a system they don't understa
 **3. Cross-validation matters more than test score for production conversations.**
 A model that scores well on one test set might be overfit. The CV RMSE (3.46 ± 0.15) tells you the model generalizes — that's the number to bring to a production review.
 
-**4. Questions a PM should ask before any model goes to production:**
+**4. Extreme feature dominance is both an insight and a risk signal.**
+Ambient Temperature drove 90.1% of the Random Forest's predictive importance — far beyond what thermodynamic theory would predict as its isolated contribution. While operationally convenient (temperature forecasts are widely available), a model that has effectively learned to ignore three of its four inputs may be fragile under distributional shift or sensor failure. This warrants collinearity analysis before production deployment.
+
+**5. Questions a PM should ask before any model goes to production:**
 - What's the cost of a false positive vs. false negative in this domain?
 - Who owns model monitoring, and what triggers a retrain?
 - How will users interact with predictions — dashboard, alert, API?
@@ -165,9 +174,11 @@ A model that scores well on one test set might be overfit. The CV RMSE (3.46 ± 
 |------|-------------|------------|
 | **Data drift** | Plant conditions change over time; a model trained on historical data may degrade | Schedule periodic retraining; monitor RMSE in production |
 | **Static dataset** | 9,568 records from a single plant over 6 years — no temporal split was applied | Treat results as directional, not as production-ready validation |
+| **Feature dominance** | AT drives 90.1% of importance — model may be fragile if temperature sensor fails or readings are noisy | Validate model behavior under missing/degraded AT inputs before production |
 | **No real error cost analysis** | RMSE treats all errors equally; a 10 MW error at peak demand may cost 10x a 10 MW error at night | Define a cost-weighted error function before production |
 | **Single plant generalization** | Model was trained on one CCPP; performance on different plants is unknown | Retrain per plant or validate on holdout plant data |
 | **No production validation** | Model has not been tested on live data or in an operational environment | A pilot with shadow deployment is required before go-live |
+| **File naming inconsistency** | Data file is `CCPP_data.csv` but notebook loads `ccpp_data.csv` — breaks on Linux | Standardize filename in repo and update notebook path |
 
 ---
 
@@ -203,18 +214,15 @@ A static model deployed once will degrade. A production-ready system needs a def
 ## Sample Visualizations
 
 ### Actual vs Predicted (Test Set)
-
 [![Prediction Plot](images/actual_vs_predicted.png)](images/actual_vs_predicted.png)
 
 ### Correlation Matrix
-
 [![Correlation Matrix](images/matrix.png)](images/matrix.png)
 
 ### Feature Importance — What drives power output?
-
 [![Feature Importance](images/feature_importance.png)](images/feature_importance.png)
 
-> Ambient Temperature is the dominant predictor (~50% importance), followed by Exhaust Vacuum. This aligns with thermodynamic intuition: higher temperatures reduce the efficiency of the Brayton cycle, lowering net output. For grid operators, this confirms a known operational pattern — generation capacity drops on hot days.
+> Ambient Temperature is the overwhelmingly dominant predictor (90.1% importance), dwarfing all other features combined. Exhaust Vacuum, Ambient Pressure, and Relative Humidity collectively account for less than 10% of the model's predictive power. This is far stronger than typical thermodynamic intuition would suggest — it's not just that temperature matters, it's that it nearly entirely drives output variability in this dataset. For grid operators, this simplifies forecasting significantly: a reliable temperature forecast is almost sufficient on its own to anticipate generation capacity. It also raises a modeling flag — such extreme dominance by a single feature warrants checking for data leakage or collinearity before deploying in production.
 
 ---
 
@@ -225,11 +233,14 @@ A static model deployed once will degrade. A production-ready system needs a def
 git clone https://github.com/fedesilverauy/energy-output-prediction-pm-case-study.git
 cd energy-output-prediction-pm-case-study
 
-# 2. Install dependencies
+# 2. Rename data file if running on Linux (case-sensitive filesystem)
+mv data/CCPP_data.csv data/ccpp_data.csv
+
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 3. Open the notebook
-jupyter notebook notebooks/ai_product_regression_case_study.ipynb
+# 4. Open the notebook
+jupyter notebook notebooks/model.ipynb
 ```
 
 ---
@@ -239,6 +250,8 @@ jupyter notebook notebooks/ai_product_regression_case_study.ipynb
 This project set out to answer a product question: which ML model should power an energy dispatch planning tool, and on what basis should that decision be made?
 
 The answer isn't simply "Random Forest because R²=0.964". It's that **Random Forest earns its complexity** — 30% lower RMSE over an already-strong baseline — and that the real work of deploying it isn't in the model itself, but in building operator trust, monitoring for drift, and integrating predictions into existing workflows.
+
+The feature importance analysis adds a nuance worth flagging: Ambient Temperature alone accounts for 90.1% of predictive importance. That's operationally convenient — temperature forecasts are widely available and reliable — but it also means the model has effectively learned to ignore three of its four inputs. Before production, that warrants a deeper look at collinearity and sensor dependency.
 
 For a Product Manager, the most important output of this exercise isn't the model. It's the framework: define the business decision first, set success metrics that reflect business cost (not just statistical error), evaluate trade-offs explicitly, and plan for production from day one — not as an afterthought.
 
@@ -266,10 +279,7 @@ Senior Product Manager
 - LinkedIn: https://linkedin.com/in/fedesilvera
 - GitHub: https://github.com/fedesilverauy
 
-*This project is part of my AI Product Management portfolio.*
+*This project is part of my AI Product Management portfolio.*  
 *Built with Duke University's AI PM Specialization — June 2025.*
 
 ---
-
-> **Interested in discussing this further?**
-> Open to connecting with PMs, AI practitioners, and teams building data-driven products in energy, telco, or enterprise SaaS.
