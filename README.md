@@ -216,8 +216,8 @@ A static model deployed once will degrade. A production-ready system needs a def
 ### Actual vs Predicted (Test Set)
 [![Prediction Plot](images/actual_vs_predicted.png)](images/actual_vs_predicted.png)
 
-### Correlation Matrix
-[![Correlation Matrix](images/matrix.png)](images/matrix.png)
+### Correlation Matrix & Distribution of Power Output (PE)
+[![Correlation Matrix and PE Distribution](images/matrix.png)](images/matrix.png)
 
 ### Feature Importance — What drives power output?
 [![Feature Importance](images/feature_importance.png)](images/feature_importance.png)
