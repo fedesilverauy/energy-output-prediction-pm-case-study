@@ -240,7 +240,7 @@ mv data/CCPP_data.csv data/ccpp_data.csv
 pip install -r requirements.txt
 
 # 4. Open the notebook
-jupyter notebook notebooks/model.ipynb
+jupyter notebook notebooks/ai_product_regression_case_study.ipynb.ipynb
 ```
 
 ---
